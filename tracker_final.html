@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>📊 Tracker Candidatura - Reggio Calabria 2026</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        
+        .header { background: linear-gradient(135deg, #1F4E78 0%, #2E5FA3 100%); color: white; padding: 12px; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .header-title { font-size: 18px; font-weight: bold; margin-bottom: 8px; }
+        .header-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+        .tab-btn { padding: 8px; background: rgba(255,255,255,0.2); border: none; color: white; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .tab-btn.active { background: rgba(255,255,255,0.4); }
+        
+        .header-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; }
+        .stat { background: rgba(255,255,255,0.15); padding: 6px; border-radius: 4px; text-align: center; font-size: 10px; }
+        .stat-value { font-size: 16px; font-weight: bold; display: block; }
+        
+        .controls { padding: 10px; background: white; border-bottom: 1px solid #ddd; flex-shrink: 0; max-height: 40vh; overflow-y: auto; }
+        .search-box { width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; margin-bottom: 8px; }
+        .search-box:focus { outline: none; border-color: #1F4E78; background: #f0f5ff; }
+        
+        .control-buttons { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 4px; margin-bottom: 8px; }
+        .control-btn { padding: 8px; background: #FF6B35; color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; }
+        .control-btn.add { background: #00B050; }
+        .control-btn.import { background: #9966CC; }
+        .control-btn.report { background: #4472C4; }
+        .control-btn.filters { background: #FF9800; }
+        .control-btn.filters.active { background: #F57C00; }
+        
+        .sort-buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 8px; }
+        .sort-btn { padding: 6px; background: #e8e8e8; border: 1px solid #999; border-radius: 4px; font-size: 10px; font-weight: 600; cursor: pointer; }
+        .sort-btn.active { background: #1F4E78; color: white; border-color: #1F4E78; }
+        
+        .filters-container { display: none; padding: 8px; background: #f9f9f9; border-radius: 4px; margin-bottom: 8px; }
+        .filters-container.open { display: block; }
+        
+        .filter-row { margin-bottom: 8px; }
+        .filter-label { font-size: 11px; font-weight: 600; color: #333; margin-bottom: 4px; }
+        .filter-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
+        .filter-option { padding: 4px 6px; border: 1px solid #ddd; background: white; border-radius: 4px; font-size: 10px; font-weight: 600; cursor: pointer; }
+        .filter-option.active { background: #1F4E78; color: white; border-color: #1F4E78; }
+        
+        .list-container { flex: 1; overflow-y: auto; padding: 8px; }
+        .list-container.hidden { display: none; }
+        
+        .contact-item { background: white; padding: 12px; margin-bottom: 6px; border-radius: 6px; border-left: 4px solid #ddd; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .contact-item.not-contacted { border-left-color: #999; }
+        .contact-item.contacted { border-left-color: #00B050; background: #f0f8f0; }
+        .contact-item.whatsapp { border-left-color: #25D366; background: #f0fff0; }
+        .contact-item.priority { border-left: 6px solid #FFD700; }
+        
+        .contact-info { flex: 1; }
+        .contact-name { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+        .contact-phone { font-size: 12px; color: #666; margin-bottom: 8px; }
+        
+        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; }
+        .status-not { background: #eee; color: #666; }
+        .status-contacted { background: #d4edda; color: #155724; }
+        .status-whatsapp { background: #d4f4dd; color: #0a5f2a; }
+        
+        .vote-badges { display: flex; gap: 4px; margin-top: 4px; }
+        .vote-badge { padding: 4px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; }
+        .vote-yes { background: #d4edda; color: #155724; }
+        
+        .contact-buttons { display: flex; gap: 4px; }
+        .priority-btn { background: none; border: none; font-size: 20px; cursor: pointer; opacity: 0.3; transition: opacity 0.2s; }
+        .priority-btn.active { opacity: 1; }
+        
+        .dashboard { display: none; flex: 1; overflow-y: auto; padding: 12px; }
+        .dashboard.active { display: block; }
+        
+        .dash-section { background: white; padding: 12px; border-radius: 6px; margin-bottom: 10px; }
+        .dash-title { font-size: 15px; font-weight: bold; color: #1F4E78; margin-bottom: 10px; border-bottom: 2px solid #1F4E78; padding-bottom: 6px; }
+        
+        .stat-row { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 10px; align-items: center; }
+        .stat-label { font-size: 14px; font-weight: 600; }
+        .stat-count { font-size: 24px; font-weight: bold; padding: 8px 12px; border-radius: 4px; text-align: right; background: #d1ecf1; color: #0c5460; }
+        
+        .modal { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: white; border-radius: 16px 16px 0 0; padding: 16px; box-shadow: 0 -2px 10px rgba(0,0,0,0.2); z-index: 100; max-height: 90vh; overflow-y: auto; }
+        .modal.active { display: flex; flex-direction: column; }
+        
+        .modal-header { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid #eee; display: flex; justify-content: space-between; align-items: flex-start; }
+        .modal-header-info { flex: 1; }
+        .modal-title { font-size: 20px; font-weight: bold; color: #1F4E78; }
+        .modal-phone { font-size: 14px; color: #666; }
+        
+        .modal-buttons { display: flex; gap: 8px; }
+        .modal-btn { background: #FF6B35; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; }
+        .modal-btn.delete { background: #d32f2f; }
+        
+        .form-group { margin-bottom: 14px; }
+        .form-label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+        .form-select { width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 13px; }
+        
+        .checkbox-group { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+        .checkbox-item { display: flex; align-items: center; gap: 8px; padding: 8px; background: #f9f9f9; border-radius: 4px; border: 1px solid #ddd; }
+        .checkbox-item input { width: 18px; height: 18px; cursor: pointer; }
+        .checkbox-label { font-size: 13px; font-weight: 600; cursor: pointer; flex: 1; }
+        
+        .button-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 20px; }
+        .btn-cancel { padding: 12px; background: #ddd; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        .btn-save { padding: 12px; background: #1F4E78; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; grid-column: 1 / -1; }
+        
+        .overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 99; }
+        .overlay.active { display: block; }
+        
+        .no-results { text-align: center; padding: 20px; color: #999; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-title">📊 Tracker Candidatura</div>
+        <div class="header-tabs">
+            <button class="tab-btn active" onclick="switchTab('list')">📋 Lista</button>
+            <button class="tab-btn" onclick="switchTab('dashboard')">📊 Report</button>
+        </div>
+        <div class="header-stats">
+            <div class="stat">
+                <span class="stat-value" id="totalCount">0</span>
+                <span>Totali</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value" id="contactedCount">0</span>
+                <span>Contattati</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value" id="priorityCount">0</span>
+                <span>⭐ Priority</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value" id="yesCount">0</span>
+                <span>👍 Sì</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <input type="text" class="search-box" id="search" placeholder="🔍 Cerca cognome, nome, telefono (anche parziale)..." oninput="applyFilters()">
+        
+        <div class="control-buttons">
+            <button class="control-btn add" onclick="alert('In sviluppo')">➕ Nuovo</button>
+            <button class="control-btn import" onclick="alert('In sviluppo')">📥 Import</button>
+            <button class="control-btn report" onclick="generateReport()">📊 Excel</button>
+            <button class="control-btn filters" id="filtersBtn" onclick="toggleFilters()">🔽 Filtri</button>
+        </div>
+        
+        <div class="sort-buttons">
+            <button class="sort-btn" onclick="setSortBy('cognome')">📝 Cognome</button>
+            <button class="sort-btn" onclick="setSortBy('nome')">📝 Nome</button>
+            <button class="sort-btn" onclick="setSortBy('status')">📞 Stato</button>
+            <button class="sort-btn" onclick="setSortBy('voti')">👍 Voti</button>
+        </div>
+        
+        <div class="filters-container" id="filtersContainer">
+            <div class="filter-row">
+                <div class="filter-label">📞 STATO CONTATTO:</div>
+                <div class="filter-options">
+                    <button class="filter-option active" onclick="setFilter('status', 'all')">Tutti</button>
+                    <button class="filter-option" onclick="setFilter('status', 'not')">❌ No</button>
+                    <button class="filter-option" onclick="setFilter('status', 'contacted')">✓ Sì</button>
+                    <button class="filter-option" onclick="setFilter('status', 'whatsapp')">💬 Chat</button>
+                </div>
+            </div>
+            
+            <div class="filter-row">
+                <div class="filter-label">⭐ PRIORITARI:</div>
+                <div class="filter-options">
+                    <button class="filter-option active" onclick="setFilter('priority', 'all')">Tutti</button>
+                    <button class="filter-option" onclick="setFilter('priority', 'yes')">⭐ Sì</button>
+                    <button class="filter-option" onclick="setFilter('priority', 'no')">❌ No</button>
+                </div>
+            </div>
+            
+            <div class="filter-row">
+                <div class="filter-label">👍 HA VOTI:</div>
+                <div class="filter-options">
+                    <button class="filter-option active" onclick="setFilter('hasvotes', 'all')">Tutti</button>
+                    <button class="filter-option" onclick="setFilter('hasvotes', 'yes')">✓ Con voti</button>
+                    <button class="filter-option" onclick="setFilter('hasvotes', 'no')">❌ Senza voti</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="list-container" id="listContainer"></div>
+    <div class="dashboard" id="dashboard"></div>
+    
+    <div class="overlay" id="overlay"></div>
+    
+    <div class="modal" id="modal">
+        <div class="modal-header">
+            <div class="modal-header-info">
+                <div class="modal-title" id="modalName"></div>
+                <div class="modal-phone" id="modalPhone"></div>
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn delete" onclick="deleteContact()">🗑️ Elimina</button>
+                <button class="modal-btn" onclick="closeModal()">✕ Chiudi</button>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">📞 Stato Contatto</label>
+            <select class="form-select" id="status">
+                <option value="not">❌ Non contattato</option>
+                <option value="contacted">✓ Contattato</option>
+                <option value="whatsapp">💬 WhatsApp</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">👤 VOTI PERSONALI</label>
+            <div class="checkbox-group">
+                <div class="checkbox-item">
+                    <input type="checkbox" id="personalYes" onchange="updateVoteCount()">
+                    <label for="personalYes" class="checkbox-label">✓ Sì</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="personalMaybe" onchange="updateVoteCount()">
+                    <label for="personalMaybe" class="checkbox-label">❓ Forse</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="personalNo" onchange="updateVoteCount()">
+                    <label for="personalNo" class="checkbox-label">❌ No</label>
+                </div>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">👥 VOTI TERZI</label>
+            <div class="checkbox-group">
+                <div class="checkbox-item">
+                    <input type="checkbox" id="thirdYes" onchange="updateVoteCount()">
+                    <label for="thirdYes" class="checkbox-label">✓ Sì</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="thirdMaybe" onchange="updateVoteCount()">
+                    <label for="thirdMaybe" class="checkbox-label">❓ Forse</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="thirdNo" onchange="updateVoteCount()">
+                    <label for="thirdNo" class="checkbox-label">❌ No</label>
+                </div>
+            </div>
+        </div>
+        
+        <div class="button-group">
+            <button class="btn-cancel" onclick="closeModal()">Annulla</button>
+            <button class="btn-save" onclick="saveContact()">💾 Salva</button>
+        </div>
+    </div>
+
+    <script>
+        let appData = { contacts: [], tracking: {} };
+        let allContacts = [];
+        let trackingData = {};
+        let currentContactId = null;
+        let searchTerm = '';
+        let sortBy = 'cognome';
+        let filters = { status: 'all', priority: 'all', hasvotes: 'all' };
+
+        async function loadAppData() {
+            try {
+                const response = await fetch('./app_data.json');
+                appData = await response.json();
+                allContacts = appData.contacts;
+                trackingData = appData.tracking;
+                console.log('✓ Dati caricati:', allContacts.length, 'contatti');
+                updateStats();
+                applyFilters();
+            } catch (e) {
+                console.error('Errore:', e);
+            }
+        }
+
+        function updateStats() {
+            let contacted = 0, priority = 0, yes = 0;
+            allContacts.forEach(c => {
+                const track = trackingData[c.id];
+                if (track && track.status !== 'not') contacted++;
+                if (track) {
+                    if (track.personalVotes.yes || track.thirdVotes.yes) yes++;
+                    if (track.priority === 'true') priority++;
+                }
+            });
+            document.getElementById('totalCount').textContent = allContacts.length;
+            document.getElementById('contactedCount').textContent = contacted;
+            document.getElementById('priorityCount').textContent = priority;
+            document.getElementById('yesCount').textContent = yes;
+        }
+
+        function toggleFilters() {
+            const container = document.getElementById('filtersContainer');
+            const btn = document.getElementById('filtersBtn');
+            container.classList.toggle('open');
+            btn.classList.toggle('active');
+        }
+
+        function setFilter(filterType, value) {
+            filters[filterType] = value;
+            document.querySelectorAll(`button[onclick*="setFilter('${filterType}"]`).forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            applyFilters();
+        }
+
+        function setSortBy(field) {
+            sortBy = field;
+            document.querySelectorAll('.sort-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            applyFilters();
+        }
+
+        function applyFilters() {
+            searchTerm = document.getElementById('search').value.toLowerCase();
+            
+            let filtered = allContacts.filter(c => {
+                const track = trackingData[c.id] || { status: 'not', personalVotes: {yes: false, maybe: false, no: false}, thirdVotes: {yes: false, maybe: false, no: false}, priority: 'false' };
+                
+                const searchStr = `${c.cognome} ${c.nome} ${c.telefono}`.toLowerCase();
+                if (!searchStr.includes(searchTerm)) return false;
+                
+                if (filters.status !== 'all' && track.status !== filters.status) return false;
+                
+                if (filters.priority === 'yes' && track.priority !== 'true') return false;
+                if (filters.priority === 'no' && track.priority === 'true') return false;
+                
+                const hasVotes = track.personalVotes.yes || track.personalVotes.maybe || track.personalVotes.no || track.thirdVotes.yes || track.thirdVotes.maybe || track.thirdVotes.no;
+                if (filters.hasvotes === 'yes' && !hasVotes) return false;
+                if (filters.hasvotes === 'no' && hasVotes) return false;
+                
+                return true;
+            });
+
+            filtered.sort((a, b) => {
+                const trackA = trackingData[a.id] || {};
+                const trackB = trackingData[b.id] || {};
+                
+                if (sortBy === 'cognome') return a.cognome.localeCompare(b.cognome);
+                if (sortBy === 'nome') return a.nome.localeCompare(b.nome);
+                if (sortBy === 'status') return (trackA.status || '').localeCompare(trackB.status || '');
+                if (sortBy === 'voti') {
+                    const votesA = (trackA.personalVotes?.yes ? 1 : 0) + (trackA.thirdVotes?.yes ? 1 : 0);
+                    const votesB = (trackB.personalVotes?.yes ? 1 : 0) + (trackB.thirdVotes?.yes ? 1 : 0);
+                    return votesB - votesA;
+                }
+                return 0;
+            });
+
+            renderContacts(filtered);
+        }
+
+        function renderContacts(contacts) {
+            const container = document.getElementById('listContainer');
+            
+            if (contacts.length === 0) {
+                container.innerHTML = '<div class="no-results">Nessun contatto trovato</div>';
+                return;
+            }
+
+            container.innerHTML = contacts.map(c => {
+                const track = trackingData[c.id] || { status: 'not', personalVotes: {yes: false, maybe: false, no: false}, thirdVotes: {yes: false, maybe: false, no: false}, priority: 'false' };
+                
+                const statusClass = track.status === 'not' ? 'not-contacted' : track.status === 'contacted' ? 'contacted' : 'whatsapp';
+                const statusText = track.status === 'not' ? '❌ Non contattato' : track.status === 'contacted' ? '✓ Contattato' : '💬 WhatsApp';
+                
+                const hasVotes = track.personalVotes.yes || track.thirdVotes.yes;
+                
+                let votesHtml = '';
+                if (hasVotes) votesHtml = `<div class="vote-badge vote-yes">👍 Sì</div>`;
+                
+                const pClass = track.priority === 'true' ? ' priority' : '';
+                
+                return `
+                    <div class="contact-item ${statusClass}${pClass}" onclick="openModal(${c.id})">
+                        <div class="contact-info">
+                            <div class="contact-name">${c.cognome} ${c.nome}</div>
+                            <div class="contact-phone">${c.telefono}</div>
+                            <span class="status-badge ${track.status === 'not' ? 'status-not' : track.status === 'contacted' ? 'status-contacted' : 'status-whatsapp'}">${statusText}</span>
+                            <div class="vote-badges">${votesHtml}</div>
+                        </div>
+                        <div class="contact-buttons">
+                            <button class="priority-btn ${track.priority === 'true' ? 'active' : ''}" onclick="togglePriority(${c.id}, event)">⭐</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function togglePriority(id, event) {
+            event.stopPropagation();
+            const track = trackingData[id];
+            track.priority = track.priority === 'true' ? 'false' : 'true';
+            updateStats();
+            applyFilters();
+        }
+
+        function openModal(id) {
+            currentContactId = id;
+            const c = allContacts.find(x => x.id === id);
+            const track = trackingData[id] || { status: 'not', personalVotes: {yes: false, maybe: false, no: false}, thirdVotes: {yes: false, maybe: false, no: false} };
+            
+            document.getElementById('modalName').textContent = `${c.cognome} ${c.nome}`.trim();
+            document.getElementById('modalPhone').textContent = c.telefono;
+            document.getElementById('status').value = track.status || 'not';
+            
+            document.getElementById('personalYes').checked = track.personalVotes.yes === true;
+            document.getElementById('personalMaybe').checked = track.personalVotes.maybe === true;
+            document.getElementById('personalNo').checked = track.personalVotes.no === true;
+            
+            document.getElementById('thirdYes').checked = track.thirdVotes.yes === true;
+            document.getElementById('thirdMaybe').checked = track.thirdVotes.maybe === true;
+            document.getElementById('thirdNo').checked = track.thirdVotes.no === true;
+            
+            document.getElementById('overlay').classList.add('active');
+            document.getElementById('modal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('overlay').classList.remove('active');
+            document.getElementById('modal').classList.remove('active');
+        }
+
+        function updateVoteCount() {
+            // Placeholder se serve logica aggiuntiva
+        }
+
+        function saveContact() {
+            const track = {
+                status: document.getElementById('status').value,
+                personalVotes: {
+                    yes: document.getElementById('personalYes').checked,
+                    maybe: document.getElementById('personalMaybe').checked,
+                    no: document.getElementById('personalNo').checked
+                },
+                thirdVotes: {
+                    yes: document.getElementById('thirdYes').checked,
+                    maybe: document.getElementById('thirdMaybe').checked,
+                    no: document.getElementById('thirdNo').checked
+                },
+                priority: trackingData[currentContactId]?.priority || 'false'
+            };
+            
+            trackingData[currentContactId] = track;
+            closeModal();
+            updateStats();
+            applyFilters();
+        }
+
+        function deleteContact() {
+            if (!confirm('⚠️ Sei sicuro di voler eliminare questo contatto? Non potrai recuperarlo.')) return;
+            
+            allContacts = allContacts.filter(c => c.id !== currentContactId);
+            delete trackingData[currentContactId];
+            closeModal();
+            updateStats();
+            applyFilters();
+        }
+
+        function generateReport() {
+            let csv = 'Cognome,Nome,Telefono,Stato,Personale Sì,Personale Forse,Personale No,Terzi Sì,Terzi Forse,Terzi No,Prioritario\n';
+            allContacts.forEach(c => {
+                const track = trackingData[c.id] || { status: 'not', personalVotes: {yes: false, maybe: false, no: false}, thirdVotes: {yes: false, maybe: false, no: false}, priority: 'false' };
+                csv += `"${c.cognome}","${c.nome}","${c.telefono}","${track.status}","${track.personalVotes.yes ? 'Sì' : ''}","${track.personalVotes.maybe ? 'Sì' : ''}","${track.personalVotes.no ? 'Sì' : ''}","${track.thirdVotes.yes ? 'Sì' : ''}","${track.thirdVotes.maybe ? 'Sì' : ''}","${track.thirdVotes.no ? 'Sì' : ''}","${track.priority === 'true' ? 'Sì' : 'No'}"\n`;
+            });
+            const blob = new Blob([csv], {type: 'text/csv'});
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'report.csv';
+            a.click();
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach((btn, idx) => {
+                btn.classList.toggle('active', (tab === 'list' && idx === 0) || (tab === 'dashboard' && idx === 1));
+            });
+            document.getElementById('listContainer').classList.toggle('hidden', tab !== 'list');
+            document.getElementById('dashboard').classList.toggle('active', tab === 'dashboard');
+            if (tab === 'dashboard') updateDashboard();
+        }
+
+        function updateDashboard() {
+            let contacted = 0, priority = 0;
+            let pYes = 0, pMaybe = 0, pNo = 0;
+            let tYes = 0, tMaybe = 0, tNo = 0;
+            
+            allContacts.forEach(c => {
+                const track = trackingData[c.id];
+                if (track && track.status !== 'not') {
+                    contacted++;
+                    if (track.personalVotes.yes) pYes++;
+                    if (track.personalVotes.maybe) pMaybe++;
+                    if (track.personalVotes.no) pNo++;
+                    if (track.thirdVotes.yes) tYes++;
+                    if (track.thirdVotes.maybe) tMaybe++;
+                    if (track.thirdVotes.no) tNo++;
+                    if (track.priority === 'true') priority++;
+                }
+            });
+            
+            document.getElementById('dashboard').innerHTML = `
+                <div class="dash-section">
+                    <div class="dash-title">📊 STATISTICHE</div>
+                    <div class="stat-row"><span class="stat-label">Totale Contatti</span><span class="stat-count">${allContacts.length}</span></div>
+                    <div class="stat-row"><span class="stat-label">✓ Contattati</span><span class="stat-count">${contacted}</span></div>
+                    <div class="stat-row"><span class="stat-label">⭐ Prioritari</span><span class="stat-count">${priority}</span></div>
+                </div>
+                <div class="dash-section">
+                    <div class="dash-title">👍 VOTI PERSONALI</div>
+                    <div class="stat-row"><span class="stat-label">✓ Sì</span><span class="stat-count">${pYes}</span></div>
+                    <div class="stat-row"><span class="stat-label">❓ Forse</span><span class="stat-count">${pMaybe}</span></div>
+                    <div class="stat-row"><span class="stat-label">❌ No</span><span class="stat-count">${pNo}</span></div>
+                </div>
+                <div class="dash-section">
+                    <div class="dash-title">👥 VOTI TERZI</div>
+                    <div class="stat-row"><span class="stat-label">✓ Sì</span><span class="stat-count">${tYes}</span></div>
+                    <div class="stat-row"><span class="stat-label">❓ Forse</span><span class="stat-count">${tMaybe}</span></div>
+                    <div class="stat-row"><span class="stat-label">❌ No</span><span class="stat-count">${tNo}</span></div>
+                </div>
+            `;
+        }
+
+        document.getElementById('overlay').addEventListener('click', closeModal);
+        loadAppData();
+    </script>
+</body>
+</html>
