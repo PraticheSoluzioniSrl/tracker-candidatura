@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>📊 Tracker Candidatura</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        
+        .header { background: linear-gradient(135deg, #1F4E78 0%, #2E5FA3 100%); color: white; padding: 12px; flex-shrink: 0; }
+        .header-title { font-size: 18px; font-weight: bold; margin-bottom: 8px; }
+        .header-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+        .tab-btn { padding: 8px; background: rgba(255,255,255,0.2); border: none; color: white; border-radius: 4px; font-size: 13px; cursor: pointer; }
+        .tab-btn.active { background: rgba(255,255,255,0.4); }
+        
+        .header-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; }
+        .stat { background: rgba(255,255,255,0.15); padding: 6px; border-radius: 4px; text-align: center; font-size: 10px; }
+        .stat-value { font-size: 16px; font-weight: bold; }
+        
+        .controls { padding: 10px; background: white; border-bottom: 1px solid #ddd; flex-shrink: 0; max-height: 50vh; overflow-y: auto; }
+        .search-box { width: 100%; padding: 10px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; margin-bottom: 8px; }
+        
+        .control-buttons { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 4px; margin-bottom: 8px; }
+        .control-btn { padding: 8px; background: #FF6B35; color: white; border: none; border-radius: 4px; font-size: 11px; cursor: pointer; }
+        .control-btn.report { background: #4472C4; }
+        .control-btn.filters { background: #FF9800; }
+        .control-btn.filters.active { background: #F57C00; }
+        
+        .sort-buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 8px; }
+        .sort-btn { padding: 6px; background: #e8e8e8; border: 1px solid #999; border-radius: 4px; font-size: 10px; cursor: pointer; }
+        .sort-btn.active { background: #1F4E78; color: white; }
+        
+        .filters-container { display: none; padding: 8px; background: #f9f9f9; border-radius: 4px; margin-bottom: 8px; }
+        .filters-container.open { display: block; }
+        
+        .filter-row { margin-bottom: 8px; }
+        .filter-label { font-size: 11px; font-weight: 600; color: #333; margin-bottom: 4px; }
+        .filter-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
+        .filter-option { padding: 4px 6px; border: 1px solid #ddd; background: white; border-radius: 4px; font-size: 10px; cursor: pointer; }
+        .filter-option.active { background: #1F4E78; color: white; }
+        
+        .list-container { flex: 1; overflow-y: auto; padding: 8px; }
+        .list-container.hidden { display: none; }
+        
+        .contact-item { background: white; padding: 12px; margin-bottom: 6px; border-radius: 6px; border-left: 4px solid #ddd; cursor: pointer; }
+        .contact-item.contacted { border-left-color: #00B050; background: #f0f8f0; }
+        .contact-name { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+        .contact-phone { font-size: 12px; color: #666; }
+        
+        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; background: #eee; color: #666; margin: 8px 4px 0 0; }
+        
+        .vote-badges { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+        .vote-badge { padding: 4px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; background: #d4edda; color: #155724; }
+        .vote-badge.no { background: #f8d7da; color: #721c24; }
+        
+        .dashboard { display: none; flex: 1; overflow-y: auto; padding: 12px; }
+        .dashboard.active { display: block; }
+        
+        .dash-section { background: white; padding: 12px; border-radius: 6px; margin-bottom: 10px; }
+        .dash-title { font-size: 15px; font-weight: bold; color: #1F4E78; margin-bottom: 10px; border-bottom: 2px solid #1F4E78; padding-bottom: 6px; }
+        .stat-row { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 10px; }
+        .stat-count { font-size: 24px; font-weight: bold; padding: 8px 12px; border-radius: 4px; background: #d1ecf1; color: #0c5460; text-align: right; }
+        
+        .modal { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: white; border-radius: 16px 16px 0 0; padding: 16px; z-index: 100; max-height: 90vh; overflow-y: auto; }
+        .modal.active { display: flex; flex-direction: column; }
+        
+        .modal-header { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid #eee; }
+        .modal-title { font-size: 20px; font-weight: bold; color: #1F4E78; }
+        .modal-buttons { display: flex; gap: 8px; margin-top: 12px; }
+        .modal-btn { background: #d32f2f; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
+        
+        .form-group { margin-bottom: 14px; }
+        .form-label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+        .form-input, .form-select { width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 13px; }
+        
+        .votes-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+        .vote-col { display: flex; flex-direction: column; gap: 4px; }
+        .vote-input { padding: 8px; border: 2px solid #ddd; border-radius: 4px; text-align: center; }
+        
+        .checkbox-item { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+        .checkbox-item input { width: 18px; height: 18px; }
+        
+        .button-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 20px; }
+        .btn-cancel { padding: 12px; background: #ddd; border: none; border-radius: 6px; cursor: pointer; }
+        .btn-save { padding: 12px; background: #1F4E78; color: white; border: none; border-radius: 6px; cursor: pointer; grid-column: 1 / -1; }
+        
+        .overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 99; }
+        .overlay.active { display: block; }
+        
+        .no-results { text-align: center; padding: 20px; color: #999; }
+        
+        .sync-status { position: fixed; bottom: 10px; right: 10px; background: #1F4E78; color: white; padding: 8px 12px; border-radius: 20px; font-size: 11px; z-index: 50; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-title">📊 Tracker Candidatura</div>
+        <div class="header-tabs">
+            <button class="tab-btn active" onclick="switchTab('list')">📋 Lista</button>
+            <button class="tab-btn" onclick="switchTab('dashboard')">📊 Report</button>
+        </div>
+        <div class="header-stats">
+            <div class="stat"><div class="stat-value" id="totalCount">0</div><span>Totali</span></div>
+            <div class="stat"><div class="stat-value" id="contactedCount">0</div><span>Contattati</span></div>
+            <div class="stat"><div class="stat-value" id="priorityCount">0</div><span>⭐ Priority</span></div>
+            <div class="stat"><div class="stat-value" id="yesCount">0</div><span>👍 Sì</span></div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <input type="text" class="search-box" id="search" placeholder="🔍 Cerca..." oninput="applyFilters()">
+        
+        <div class="control-buttons">
+            <button class="control-btn" onclick="alert('In sviluppo')" style="background: #00B050;">➕ Nuovo</button>
+            <button class="control-btn" onclick="alert('In sviluppo')" style="background: #9966CC;">📥 Import</button>
+            <button class="control-btn report" onclick="generateReport()">📊 Excel</button>
+            <button class="control-btn filters" id="filtersBtn" onclick="toggleFilters()">🔽 Filtri</button>
+        </div>
+        
+        <div class="sort-buttons">
+            <button class="sort-btn" onclick="setSortBy('cognome')">📝 Cognome</button>
+            <button class="sort-btn" onclick="setSortBy('nome')">📝 Nome</button>
+            <button class="sort-btn" onclick="setSortBy('status')">📞 Stato</button>
+            <button class="sort-btn" onclick="setSortBy('voti')">👍 Voti</button>
+        </div>
+        
+        <div class="filters-container" id="filtersContainer">
+            <div class="filter-row">
+                <div class="filter-label">📞 STATO:</div>
+                <div class="filter-options">
+                    <button class="filter-option active" onclick="setFilter('status', 'all')">Tutti</button>
+                    <button class="filter-option" onclick="setFilter('status', 'not')">❌ No</button>
+                    <button class="filter-option" onclick="setFilter('status', 'contacted')">✓ Sì</button>
+                </div>
+            </div>
+            <div class="filter-row">
+                <div class="filter-label">⭐ PRIORITARI:</div>
+                <div class="filter-options">
+                    <button class="filter-option active" onclick="setFilter('priority', 'all')">Tutti</button>
+                    <button class="filter-option" onclick="setFilter('priority', 'yes')">⭐ Sì</button>
+                    <button class="filter-option" onclick="setFilter('priority', 'no')">❌ No</button>
+                </div>
+            </div>
+            <div class="filter-row">
+                <div class="filter-label">❌ CHI HA DETTO NO:</div>
+                <div class="filter-options">
+                    <button class="filter-option active" onclick="setFilter('hasno', 'all')">Tutti</button>
+                    <button class="filter-option" onclick="setFilter('hasno', 'yes')">❌ Con No</button>
+                    <button class="filter-option" onclick="setFilter('hasno', 'no')">✓ Senza No</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="list-container" id="listContainer"></div>
+    <div class="dashboard" id="dashboard"></div>
+    
+    <div class="overlay" id="overlay" onclick="closeModal()"></div>
+    
+    <div class="modal" id="modal">
+        <div class="modal-header">
+            <div class="modal-title" id="modalName"></div>
+            <div style="font-size: 14px; color: #666;" id="modalPhone"></div>
+            <div class="modal-buttons">
+                <button class="modal-btn" onclick="deleteContact()">🗑️ Elimina</button>
+            </div>
+        </div>
+        
+        <div class="form-group"><label class="form-label">👤 Cognome</label><input type="text" class="form-input" id="inputCognome"></div>
+        <div class="form-group"><label class="form-label">👤 Nome</label><input type="text" class="form-input" id="inputNome"></div>
+        <div class="form-group"><label class="form-label">📱 Telefono</label><input type="text" class="form-input" id="inputTelefono"></div>
+        <div class="form-group"><label class="form-label">📞 Stato</label><select class="form-select" id="status"><option value="not">❌ Non contattato</option><option value="contacted">✓ Contattato</option><option value="whatsapp">💬 WhatsApp</option></select></div>
+        
+        <div class="form-group">
+            <label class="form-label">👤 VOTI PERSONALI</label>
+            <div class="votes-row">
+                <div class="vote-col"><span style="font-size: 11px; font-weight: 600;">✓ Sì</span><input type="number" class="vote-input" id="personalYes" min="0"></div>
+                <div class="vote-col"><span style="font-size: 11px; font-weight: 600;">❓ Forse</span><input type="number" class="vote-input" id="personalMaybe" min="0"></div>
+                <div class="vote-col"><span style="font-size: 11px; font-weight: 600;">❌ No</span><div class="checkbox-item"><input type="checkbox" id="personalNo"></div></div>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">👥 VOTI TERZI</label>
+            <div class="votes-row">
+                <div class="vote-col"><span style="font-size: 11px; font-weight: 600;">✓ Sì</span><input type="number" class="vote-input" id="thirdYes" min="0"></div>
+                <div class="vote-col"><span style="font-size: 11px; font-weight: 600;">❓ Forse</span><input type="number" class="vote-input" id="thirdMaybe" min="0"></div>
+                <div class="vote-col"><span style="font-size: 11px; font-weight: 600;">❌ No</span><div class="checkbox-item"><input type="checkbox" id="thirdNo"></div></div>
+            </div>
+        </div>
+        
+        <div class="button-group">
+            <button class="btn-cancel" onclick="closeModal()">Annulla</button>
+            <button class="btn-save" onclick="saveContact()">💾 Salva</button>
+        </div>
+    </div>
+    
+    <div class="sync-status" id="syncStatus">⏳ Caricamento...</div>
+
+    <script>
+        const SUPABASE_URL = 'https://xdgdcmcqvzeiawgxuxsu.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_A3tp2Dfmd1lGOtZCiA7AXg_itm855Wx';
+        
+        let sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        let allContacts = [];
+        let trackingData = {};
+        let currentContactId = null;
+        let filters = { status: 'all', priority: 'all', hasno: 'all' };
+
+        async function init() {
+            try {
+                const response = await fetch('./app_data.json');
+                const data = await response.json();
+                allContacts = data.contacts;
+                trackingData = data.tracking;
+                
+                await syncFromSupabase();
+                updateStats();
+                applyFilters();
+                document.getElementById('syncStatus').textContent = '✓ Sincronizzato';
+            } catch (e) {
+                console.error('Errore:', e);
+                document.getElementById('syncStatus').textContent = '❌ Errore';
+            }
+        }
+
+        async function syncFromSupabase() {
+            try {
+                const { data } = await sb.from('tracking_data').select('*');
+                if (data) {
+                    data.forEach(row => {
+                        if (row.data) trackingData[row.contact_id] = row.data;
+                    });
+                }
+            } catch (e) {
+                console.warn('Supabase offline, uso cache');
+            }
+        }
+
+        function updateStats() {
+            let contacted = 0, priority = 0, yes = 0;
+            Object.keys(trackingData).forEach(id => {
+                const t = trackingData[id];
+                if (t.status !== 'not') contacted++;
+                if ((t.personalVotes?.yes || 0) + (t.thirdVotes?.yes || 0) > 0) yes++;
+                if (t.priority === 'true') priority++;
+            });
+            document.getElementById('totalCount').textContent = allContacts.length;
+            document.getElementById('contactedCount').textContent = contacted;
+            document.getElementById('priorityCount').textContent = priority;
+            document.getElementById('yesCount').textContent = yes;
+        }
+
+        function toggleFilters() {
+            document.getElementById('filtersContainer').classList.toggle('open');
+            document.getElementById('filtersBtn').classList.toggle('active');
+        }
+
+        function setFilter(type, value) {
+            filters[type] = value;
+            document.querySelectorAll(`button[onclick*="setFilter('${type}"]`).forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            applyFilters();
+        }
+
+        function setSortBy(field) {
+            document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const search = document.getElementById('search').value.toLowerCase();
+            let filtered = allContacts.filter(c => {
+                const t = trackingData[c.id] || { status: 'not', personalVotes: {yes: 0, maybe: 0, no: false}, thirdVotes: {yes: 0, maybe: 0, no: false}, priority: 'false' };
+                if (!`${c.cognome} ${c.nome} ${c.telefono}`.toLowerCase().includes(search)) return false;
+                if (filters.status !== 'all' && t.status !== filters.status) return false;
+                if (filters.priority === 'yes' && t.priority !== 'true') return false;
+                if (filters.priority === 'no' && t.priority === 'true') return false;
+                const hasNo = t.personalVotes.no || t.thirdVotes.no;
+                if (filters.hasno === 'yes' && !hasNo) return false;
+                if (filters.hasno === 'no' && hasNo) return false;
+                return true;
+            });
+
+            filtered.sort((a, b) => {
+                const sortBtn = document.querySelector('.sort-btn.active');
+                if (!sortBtn) return 0;
+                const field = sortBtn.textContent.includes('Cognome') ? 'cognome' : sortBtn.textContent.includes('Nome') ? 'nome' : 'voti';
+                if (field === 'cognome') return a.cognome.localeCompare(b.cognome);
+                if (field === 'nome') return a.nome.localeCompare(b.nome);
+                const tA = trackingData[a.id] || {};
+                const tB = trackingData[b.id] || {};
+                const votesA = (tA.personalVotes?.yes || 0) + (tA.thirdVotes?.yes || 0);
+                const votesB = (tB.personalVotes?.yes || 0) + (tB.thirdVotes?.yes || 0);
+                return votesB - votesA;
+            });
+
+            renderContacts(filtered);
+        }
+
+        function renderContacts(contacts) {
+            const html = contacts.length === 0 ? '<div class="no-results">Nessun contatto</div>' : contacts.map(c => {
+                const t = trackingData[c.id] || { status: 'not', personalVotes: {yes: 0, maybe: 0, no: false}, thirdVotes: {yes: 0, maybe: 0, no: false}, priority: 'false' };
+                const pY = Number(t.personalVotes?.yes) || 0;
+                const pM = Number(t.personalVotes?.maybe) || 0;
+                const tY = Number(t.thirdVotes?.yes) || 0;
+                const tM = Number(t.thirdVotes?.maybe) || 0;
+                let votes = '';
+                if (pY > 0) votes += `<div class="vote-badge">👤 Sì: ${pY}</div>`;
+                if (pM > 0) votes += `<div class="vote-badge">👤 Forse: ${pM}</div>`;
+                if (tY > 0) votes += `<div class="vote-badge">👥 Sì: ${tY}</div>`;
+                if (tM > 0) votes += `<div class="vote-badge">👥 Forse: ${tM}</div>`;
+                if (t.personalVotes.no || t.thirdVotes.no) votes += `<div class="vote-badge no">❌ No</div>`;
+                return `<div class="contact-item ${t.status === 'contacted' ? 'contacted' : ''}" onclick="openModal(${c.id})"><div class="contact-name">${c.cognome} ${c.nome}</div><div class="contact-phone">${c.telefono}</div><span class="status-badge">${t.status === 'not' ? '❌ Non contattato' : '✓ Contattato'}</span><div class="vote-badges">${votes}</div></div>`;
+            }).join('');
+            document.getElementById('listContainer').innerHTML = html;
+        }
+
+        function openModal(id) {
+            currentContactId = id;
+            const c = allContacts.find(x => x.id === id);
+            const t = trackingData[id] || { status: 'not', personalVotes: {yes: 0, maybe: 0, no: false}, thirdVotes: {yes: 0, maybe: 0, no: false} };
+            
+            document.getElementById('modalName').textContent = `${c.cognome} ${c.nome}`;
+            document.getElementById('modalPhone').textContent = c.telefono;
+            document.getElementById('inputCognome').value = c.cognome;
+            document.getElementById('inputNome').value = c.nome;
+            document.getElementById('inputTelefono').value = c.telefono;
+            document.getElementById('status').value = t.status || 'not';
+            document.getElementById('personalYes').value = t.personalVotes?.yes || 0;
+            document.getElementById('personalMaybe').value = t.personalVotes?.maybe || 0;
+            document.getElementById('personalNo').checked = t.personalVotes?.no === true;
+            document.getElementById('thirdYes').value = t.thirdVotes?.yes || 0;
+            document.getElementById('thirdMaybe').value = t.thirdVotes?.maybe || 0;
+            document.getElementById('thirdNo').checked = t.thirdVotes?.no === true;
+            
+            document.getElementById('overlay').classList.add('active');
+            document.getElementById('modal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('overlay').classList.remove('active');
+            document.getElementById('modal').classList.remove('active');
+        }
+
+        function saveContact() {
+            const c = allContacts.find(x => x.id === currentContactId);
+            c.cognome = document.getElementById('inputCognome').value.trim();
+            c.nome = document.getElementById('inputNome').value.trim();
+            c.telefono = document.getElementById('inputTelefono').value.trim();
+            
+            trackingData[currentContactId] = {
+                status: document.getElementById('status').value,
+                personalVotes: {
+                    yes: Number(document.getElementById('personalYes').value) || 0,
+                    maybe: Number(document.getElementById('personalMaybe').value) || 0,
+                    no: document.getElementById('personalNo').checked
+                },
+                thirdVotes: {
+                    yes: Number(document.getElementById('thirdYes').value) || 0,
+                    maybe: Number(document.getElementById('thirdMaybe').value) || 0,
+                    no: document.getElementById('thirdNo').checked
+                },
+                priority: trackingData[currentContactId]?.priority || 'false'
+            };
+            
+            sb.from('tracking_data').upsert({ contact_id: currentContactId, data: trackingData[currentContactId] }, { onConflict: 'contact_id' }).catch(e => console.error('Supabase error:', e));
+            
+            closeModal();
+            updateStats();
+            applyFilters();
+        }
+
+        function deleteContact() {
+            if (!confirm('⚠️ Sei sicuro?')) return;
+            allContacts = allContacts.filter(c => c.id !== currentContactId);
+            delete trackingData[currentContactId];
+            closeModal();
+            updateStats();
+            applyFilters();
+        }
+
+        function generateReport() {
+            let csv = 'Cognome,Nome,Telefono,Stato,Personale Sì,Personale Forse,Personale No,Terzi Sì,Terzi Forse,Terzi No\n';
+            allContacts.forEach(c => {
+                const t = trackingData[c.id] || { status: 'not', personalVotes: {yes: 0, maybe: 0, no: false}, thirdVotes: {yes: 0, maybe: 0, no: false} };
+                csv += `"${c.cognome}","${c.nome}","${c.telefono}","${t.status}",${t.personalVotes.yes},${t.personalVotes.maybe},"${t.personalVotes.no ? 'Sì' : ''}",${t.thirdVotes.yes},${t.thirdVotes.maybe},"${t.thirdVotes.no ? 'Sì' : ''}"\n`;
+            });
+            const blob = new Blob([csv], {type: 'text/csv'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'report.csv';
+            a.click();
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach((btn, i) => btn.classList.toggle('active', (tab === 'list' && i === 0) || (tab === 'dashboard' && i === 1)));
+            document.getElementById('listContainer').classList.toggle('hidden', tab !== 'list');
+            document.getElementById('dashboard').classList.toggle('active', tab === 'dashboard');
+            if (tab === 'dashboard') updateDashboard();
+        }
+
+        function updateDashboard() {
+            let contacted = 0, priority = 0, pYes = 0, pMaybe = 0, pNo = 0, tYes = 0, tMaybe = 0, tNo = 0;
+            Object.keys(trackingData).forEach(id => {
+                const t = trackingData[id];
+                if (t.status !== 'not') {
+                    contacted++;
+                    pYes += Number(t.personalVotes?.yes) || 0;
+                    pMaybe += Number(t.personalVotes?.maybe) || 0;
+                    if (t.personalVotes?.no) pNo++;
+                    tYes += Number(t.thirdVotes?.yes) || 0;
+                    tMaybe += Number(t.thirdVotes?.maybe) || 0;
+                    if (t.thirdVotes?.no) tNo++;
+                    if (t.priority === 'true') priority++;
+                }
+            });
+            document.getElementById('dashboard').innerHTML = `
+                <div class="dash-section"><div class="dash-title">📊 STATISTICHE</div><div class="stat-row"><span>Totale</span><span class="stat-count">${allContacts.length}</span></div><div class="stat-row"><span>✓ Contattati</span><span class="stat-count">${contacted}</span></div><div class="stat-row"><span>⭐ Prioritari</span><span class="stat-count">${priority}</span></div></div>
+                <div class="dash-section"><div class="dash-title">👤 VOTI PERSONALI</div><div class="stat-row"><span>✓ Sì</span><span class="stat-count">${pYes}</span></div><div class="stat-row"><span>❓ Forse</span><span class="stat-count">${pMaybe}</span></div><div class="stat-row"><span>❌ No</span><span class="stat-count">${pNo}</span></div></div>
+                <div class="dash-section"><div class="dash-title">👥 VOTI TERZI</div><div class="stat-row"><span>✓ Sì</span><span class="stat-count">${tYes}</span></div><div class="stat-row"><span>❓ Forse</span><span class="stat-count">${tMaybe}</span></div><div class="stat-row"><span>❌ No</span><span class="stat-count">${tNo}</span></div></div>
+            `;
+        }
+
+        init();
+    </script>
+</body>
+</html>
