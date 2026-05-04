@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>📊 Tracker Candidatura</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; }
+        
+        .container { display: flex; flex-direction: column; height: 100vh; }
+        
+        .header { background: linear-gradient(135deg, #1F4E78 0%, #2E5FA3 100%); color: white; padding: 12px; flex-shrink: 0; }
+        .header h1 { font-size: 20px; margin-bottom: 8px; }
+        .header-info { font-size: 11px; opacity: 0.9; margin-bottom: 8px; }
+        .sync-badge { display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; background: #ff9800; animation: pulse 1s infinite; }
+        .sync-badge.synced { background: #4caf50; animation: none; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+        
+        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+        .stat-box { background: rgba(255,255,255,0.2); padding: 8px; border-radius: 6px; text-align: center; font-size: 11px; }
+        .stat-number { font-size: 20px; font-weight: bold; }
+        
+        .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+        .tab-btn { padding: 8px; background: rgba(255,255,255,0.2); border: none; color: white; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .tab-btn.active { background: rgba(255,255,255,0.4); }
+        
+        .toolbar { padding: 10px; background: white; border-bottom: 1px solid #ddd; flex-shrink: 0; }
+        .search-box { width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; margin-bottom: 8px; }
+        .search-box:focus { outline: none; border-color: #1F4E78; background: #f0f5ff; }
+        
+        .button-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+        .btn { padding: 10px; border: none; border-radius: 4px; font-size: 12px; font-weight: 600; color: white; cursor: pointer; }
+        .btn-nuevo { background: #00B050; }
+        .btn-import { background: #9966CC; }
+        .btn-excel { background: #4472C4; }
+        .btn-filters { background: #FF9800; }
+        .btn-filters.active { background: #F57C00; }
+        
+        .filters-panel { max-height: 0; overflow: hidden; background: white; border-bottom: 1px solid #ddd; transition: max-height 0.3s ease-out; }
+        .filters-panel.open { max-height: 600px; overflow-y: auto; }
+        
+        .filters-content { padding: 12px; }
+        .filter-group { margin-bottom: 12px; }
+        .filter-title { font-size: 11px; font-weight: bold; color: #333; margin-bottom: 6px; }
+        .filter-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); gap: 4px; }
+        .filter-btn { padding: 6px; border: 1px solid #ddd; background: white; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; }
+        .filter-btn.active { background: #1F4E78; color: white; border-color: #1F4E78; }
+        
+        .content { flex: 1; overflow: hidden; display: flex; }
+        
+        .list-container { flex: 1; overflow-y: auto; padding: 8px; display: none; }
+        .list-container.active { display: block; }
+        
+        .contact { padding: 12px; background: white; margin-bottom: 8px; border-radius: 8px; border-left: 4px solid #ddd; cursor: pointer; }
+        .contact:active { transform: scale(0.98); }
+        .contact.contacted { border-left-color: #00B050; background: #f0f8f0; }
+        .contact.whatsapp { border-left-color: #25D366; background: #f0fff0; }
+        .contact.priority { border-left: 5px solid #FFD700; }
+        
+        .contact-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+        .contact-info { flex: 1; }
+        .contact-name { font-weight: 600; font-size: 15px; margin-bottom: 2px; }
+        .contact-phone { font-size: 12px; color: #666; }
+        
+        .contact-top-right { display: flex; align-items: center; gap: 4px; }
+        .contact-status { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; background: #eee; color: #666; }
+        .status-contacted { background: #d4edda; color: #155724; }
+        .status-whatsapp { background: #d4f4dd; color: #0a5f2a; }
+        .priority-icon { font-size: 18px; }
+        
+        .votes-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee; font-size: 11px; }
+        .votes-section { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        .vote-label { font-weight: 600; color: #666; font-size: 10px; }
+        .vote-item { display: flex; align-items: center; gap: 2px; padding: 2px 4px; background: #f0f0f0; border-radius: 3px; }
+        .vote-icon { font-size: 11px; }
+        .vote-number { font-weight: 700; color: #333; font-size: 11px; }
+        
+        .report-container { flex: 1; overflow-y: auto; padding: 12px; display: none; }
+        .report-container.active { display: block; }
+        .report-section { background: white; padding: 12px; border-radius: 6px; margin-bottom: 12px; }
+        .report-title { font-size: 14px; font-weight: bold; color: #1F4E78; margin-bottom: 10px; border-bottom: 2px solid #1F4E78; padding-bottom: 6px; }
+        .stat-row { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 10px; align-items: center; }
+        .stat-label { font-size: 13px; font-weight: 600; }
+        .stat-value { font-size: 24px; font-weight: bold; padding: 8px 12px; border-radius: 4px; text-align: right; background: #e3f2fd; color: #1565c0; }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: flex-end; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; width: 100%; max-height: 80vh; overflow-y: auto; border-radius: 16px 16px 0 0; padding: 16px; }
+        
+        .modal-title { font-size: 18px; font-weight: bold; margin-bottom: 12px; }
+        .form-group { margin-bottom: 10px; }
+        .form-label { display: block; font-weight: 600; font-size: 12px; margin-bottom: 4px; }
+        .form-input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        .form-input:focus { outline: none; border-color: #1F4E78; background: #f0f5ff; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+        .form-row input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; text-align: center; font-size: 13px; }
+        
+        .modal-buttons { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 16px; }
+        .modal-btn { padding: 10px; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 13px; }
+        .btn-save { background: #00B050; color: white; grid-column: 2 / -1; }
+        .btn-close { background: #ddd; color: #333; }
+        .btn-delete { background: #d32f2f; color: white; display: none; }
+        
+        .empty { padding: 20px; text-align: center; color: #999; }
+        #fileInput { display: none; }
+        
+        @media (max-width: 600px) {
+            .button-row { grid-template-columns: repeat(2, 1fr); }
+            .votes-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Tracker Candidatura</h1>
+            <div class="header-info">Sincronizzazione: <span class="sync-badge" id="sync-badge">⏳ Caricamento...</span></div>
+            <div class="stats">
+                <div class="stat-box"><div class="stat-number" id="stat-total">0</div><div>Totali</div></div>
+                <div class="stat-box"><div class="stat-number" id="stat-contacted">0</div><div>Contattati</div></div>
+                <div class="stat-box"><div class="stat-number" id="stat-priority">0</div><div>⭐</div></div>
+                <div class="stat-box"><div class="stat-number" id="stat-votes">0</div><div>👍 Voti</div></div>
+            </div>
+            <div class="tabs">
+                <button class="tab-btn active" id="tab-lista">📋 Lista</button>
+                <button class="tab-btn" id="tab-report">📊 Report</button>
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <input type="text" class="search-box" id="search" placeholder="🔍 Cerca...">
+            
+            <div class="button-row">
+                <button class="btn btn-nuevo" id="btn-nuovo">➕ Nuovo</button>
+                <button class="btn btn-import" id="btn-import">📥 Importa</button>
+                <button class="btn btn-excel" id="btn-excel">📊 Excel</button>
+                <button class="btn btn-filters" id="btn-filters">⚙️ Filtri</button>
+            </div>
+        </div>
+
+        <div class="filters-panel" id="filters-panel">
+            <div class="filters-content">
+                <div class="filter-group"><div class="filter-title">📋 ORDINAMENTO</div><div class="filter-buttons"><button class="filter-btn active" data-sort="cognome">Cognome</button><button class="filter-btn" data-sort="nome">Nome</button><button class="filter-btn" data-sort="stato">Stato</button></div></div>
+                <div class="filter-group"><div class="filter-title">📞 STATO</div><div class="filter-buttons"><button class="filter-btn active" data-filter="stato" data-value="all">Tutti</button><button class="filter-btn" data-filter="stato" data-value="no">❌ No</button><button class="filter-btn" data-filter="stato" data-value="si">✅ Sì</button><button class="filter-btn" data-filter="stato" data-value="chat">💬 Chat</button></div></div>
+                <div class="filter-group"><div class="filter-title">⭐ PRIORITARI</div><div class="filter-buttons"><button class="filter-btn active" data-filter="priority" data-value="all">Tutti</button><button class="filter-btn" data-filter="priority" data-value="si">⭐ Sì</button><button class="filter-btn" data-filter="priority" data-value="no">❌ No</button></div></div>
+                <div class="filter-group"><div class="filter-title">☎️ DA RICHIAMARE</div><div class="filter-buttons"><button class="filter-btn active" data-filter="recall" data-value="all">Tutti</button><button class="filter-btn" data-filter="recall" data-value="si">☎️ Sì</button><button class="filter-btn" data-filter="recall" data-value="no">❌ No</button></div></div>
+                <div class="filter-group"><div class="filter-title">👤 VOTI PERSONALI</div><div class="filter-buttons"><button class="filter-btn active" data-filter="pvotes" data-value="all">Tutti</button><button class="filter-btn" data-filter="pvotes" data-value="si">👍 Sì</button><button class="filter-btn" data-filter="pvotes" data-value="forse">❓ Forse</button><button class="filter-btn" data-filter="pvotes" data-value="no">👎 No</button></div></div>
+                <div class="filter-group"><div class="filter-title">👥 VOTI TERZI</div><div class="filter-buttons"><button class="filter-btn active" data-filter="tvotes" data-value="all">Tutti</button><button class="filter-btn" data-filter="tvotes" data-value="si">👍 Sì</button><button class="filter-btn" data-filter="tvotes" data-value="forse">❓ Forse</button><button class="filter-btn" data-filter="tvotes" data-value="no">👎 No</button></div></div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="list-container active" id="list"></div>
+            <div class="report-container" id="report">
+                <div class="report-section">
+                    <div class="report-title">📊 Riepilogo Contatti</div>
+                    <div class="stat-row"><div class="stat-label">Totali</div><div class="stat-value" id="rep-total">0</div></div>
+                    <div class="stat-row"><div class="stat-label">Contattati</div><div class="stat-value" id="rep-contacted">0</div></div>
+                    <div class="stat-row"><div class="stat-label">WhatsApp</div><div class="stat-value" id="rep-whatsapp">0</div></div>
+                    <div class="stat-row"><div class="stat-label">Non contattati</div><div class="stat-value" id="rep-not">0</div></div>
+                    <div class="stat-row"><div class="stat-label">Prioritari</div><div class="stat-value" id="rep-priority">0</div></div>
+                </div>
+                <div class="report-section">
+                    <div class="report-title">🗳️ Voti Personali</div>
+                    <div class="stat-row"><div class="stat-label">Sì</div><div class="stat-value" id="rep-psi">0</div></div>
+                    <div class="stat-row"><div class="stat-label">Forse</div><div class="stat-value" id="rep-pforse">0</div></div>
+                    <div class="stat-row"><div class="stat-label">No</div><div class="stat-value" id="rep-pno">0</div></div>
+                </div>
+                <div class="report-section">
+                    <div class="report-title">👥 Voti Terzi</div>
+                    <div class="stat-row"><div class="stat-label">Sì</div><div class="stat-value" id="rep-tsi">0</div></div>
+                    <div class="stat-row"><div class="stat-label">Forse</div><div class="stat-value" id="rep-tforse">0</div></div>
+                    <div class="stat-row"><div class="stat-label">No</div><div class="stat-value" id="rep-tno">0</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <div class="modal-title" id="modal-title">Nuovo Contatto</div>
+            <div class="form-group"><label class="form-label">Cognome</label><input type="text" id="cognome" class="form-input"></div>
+            <div class="form-group"><label class="form-label">Nome</label><input type="text" id="nome" class="form-input"></div>
+            <div class="form-group"><label class="form-label">Telefono</label><input type="tel" id="telefono" class="form-input"></div>
+            <div class="form-group"><label class="form-label">Stato</label><select id="stato" class="form-input"><option value="Non contattato">Non contattato</option><option value="Contattato">Contattato</option><option value="WhatsApp">WhatsApp</option></select></div>
+            <div class="form-group"><label class="form-label">Voti Personali</label><div class="form-row"><input type="number" id="psi" placeholder="Sì" value="0" min="0"><input type="number" id="pforse" placeholder="Forse" value="0" min="0"><input type="number" id="pno" placeholder="No" value="0" min="0"></div></div>
+            <div class="form-group"><label class="form-label">Voti Terzi</label><div class="form-row"><input type="number" id="tsi" placeholder="Sì" value="0" min="0"><input type="number" id="tforse" placeholder="Forse" value="0" min="0"><input type="number" id="tno" placeholder="No" value="0" min="0"></div></div>
+            <div class="form-group"><label style="display: flex; gap: 8px; align-items: center; cursor: pointer; font-size: 13px;"><input type="checkbox" id="priority" style="width: 16px; height: 16px;"><span>⭐ Prioritario</span></label></div>
+            <div class="form-group"><label style="display: flex; gap: 8px; align-items: center; cursor: pointer; font-size: 13px;"><input type="checkbox" id="recall" style="width: 16px; height: 16px;"><span>☎️ Da Richiamare</span></label></div>
+            <div class="modal-buttons">
+                <button class="modal-btn btn-close" id="btn-close">Chiudi</button>
+                <button class="modal-btn btn-delete" id="btn-delete">Elimina</button>
+                <button class="modal-btn btn-save" id="btn-save">Salva</button>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" accept=".csv,.xlsx,.xls">
+
+    <script>
+        const SUPABASE_URL = 'https://bmikgbvluvolhgfgdsfz.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_UvKhhSpWf0P4BxDL6wAqGg__E0DgIHN';
+        const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let allContacts = [];
+        let filters = { search: '', stato: 'all', priority: 'all', recall: 'all', pvotes: 'all', tvotes: 'all', sort: 'cognome' };
+        let currentEditId = null;
+        let isSyncing = false;
+        const STORAGE_KEY = 'tracker_data_v7';
+
+        function setSyncStatus(text, type = 'syncing') { const badge = document.getElementById('sync-badge'); badge.textContent = text; badge.className = `sync-badge ${type === 'synced' ? 'synced' : ''}`; }
+        function saveLocal() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(allContacts)); } catch (e) { console.error('Local save error:', e); } }
+        function loadLocal() { try { const stored = localStorage.getItem(STORAGE_KEY); if (stored) { allContacts = JSON.parse(stored); return true; } } catch (e) { console.error('Local load error:', e); } return false; }
+
+        async function syncSupabase() { if (isSyncing) return; isSyncing = true; setSyncStatus('⏳ Sincronizzazione...'); try { const { data, error } = await db.from('tracker_contacts').select('*'); if (error) { console.error('Sync error:', error); setSyncStatus('❌ Errore sync', 'error'); isSyncing = false; return; } if (data && data.length > 0) { const serverMap = {}; data.forEach(d => serverMap[d.id] = d); allContacts = allContacts.map(local => serverMap[local.id] ? { ...local, ...serverMap[local.id] } : local); Object.values(serverMap).forEach(server => { if (!allContacts.find(c => c.id === server.id)) { allContacts.push(server); } }); saveLocal(); } render(); updateStats(); setSyncStatus('✅ Sincronizzato', 'synced'); } catch (err) { console.error('Sync exception:', err); setSyncStatus('❌ Errore', 'error'); } isSyncing = false; }
+        async function uploadContact(contact) { try { const { error } = await db.from('tracker_contacts').upsert([contact], { onConflict: 'id' }); if (error) { console.error('Upload error:', error); return false; } return true; } catch (err) { console.error('Upload exception:', err); return false; } }
+
+        function parseCSV(text) { const lines = text.trim().split('\n'); const newContacts = []; for (let i = 1; i < lines.length; i++) { if (!lines[i].trim()) continue; const values = lines[i].split(';').map(v => v.trim()); const contact = { id: `${Date.now()}_${i}_${Math.random()}`, cognome: values[0] || '', nome: values[1] || '', telefono: values[2] || '', stato: values[3] || 'Non contattato', psi: parseInt(values[4]) || 0, pforse: parseInt(values[5]) || 0, pno: parseInt(values[6]) || 0, tsi: parseInt(values[7]) || 0, tforse: parseInt(values[8]) || 0, tno: parseInt(values[9]) || 0, priority: values[10] === 'Si' || values[10] === 'Sì', recall: values[11] === 'Si' || values[11] === 'Sì', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }; if (contact.cognome || contact.nome) { newContacts.push(contact); } } return newContacts; }
+
+        function getFilteredList() { let list = [...allContacts]; if (filters.search) { list = list.filter(c => c.cognome.toLowerCase().includes(filters.search) || c.nome.toLowerCase().includes(filters.search) || c.telefono.includes(filters.search)); } if (filters.stato !== 'all') { list = list.filter(c => (filters.stato === 'no' && c.stato === 'Non contattato') || (filters.stato === 'si' && c.stato === 'Contattato') || (filters.stato === 'chat' && c.stato === 'WhatsApp')); } if (filters.priority !== 'all') { list = list.filter(c => filters.priority === 'si' ? c.priority : !c.priority); } if (filters.recall !== 'all') { list = list.filter(c => filters.recall === 'si' ? c.recall : !c.recall); } if (filters.pvotes !== 'all') { list = list.filter(c => (filters.pvotes === 'si' && c.psi > 0) || (filters.pvotes === 'forse' && c.pforse > 0) || (filters.pvotes === 'no' && c.pno > 0)); } if (filters.tvotes !== 'all') { list = list.filter(c => (filters.tvotes === 'si' && c.tsi > 0) || (filters.tvotes === 'forse' && c.tforse > 0) || (filters.tvotes === 'no' && c.tno > 0)); } list.sort((a, b) => { if (filters.sort === 'cognome') return a.cognome.localeCompare(b.cognome); if (filters.sort === 'nome') return a.nome.localeCompare(b.nome); if (filters.sort === 'stato') return a.stato.localeCompare(b.stato); return 0; }); return list; }
+
+        function render() { const list = getFilteredList(); const html = list.map(c => { const statusClass = c.stato === 'Contattato' ? 'contacted' : c.stato === 'WhatsApp' ? 'whatsapp' : ''; const statusLabel = c.stato === 'Non contattato' ? '❌' : c.stato === 'Contattato' ? '✅' : '💬'; return `<div class="contact ${statusClass} ${c.priority ? 'priority' : ''}" onclick="editContact('${c.id}')"><div class="contact-header"><div class="contact-info"><div class="contact-name">${c.cognome} ${c.nome}</div><div class="contact-phone">${c.telefono}</div></div><div class="contact-top-right"><span class="contact-status ${c.stato === 'Contattato' ? 'status-contacted' : c.stato === 'WhatsApp' ? 'status-whatsapp' : ''}">${statusLabel}</span>${c.priority ? '<span class="priority-icon">⭐</span>' : ''}</div></div><div class="votes-row"><div class="votes-section"><span class="vote-label">👤 Pers:</span>${c.psi > 0 ? `<div class="vote-item"><span class="vote-icon">👍</span><span class="vote-number">${c.psi}</span></div>` : ''}${c.pforse > 0 ? `<div class="vote-item"><span class="vote-icon">❓</span><span class="vote-number">${c.pforse}</span></div>` : ''}${c.pno > 0 ? `<div class="vote-item"><span class="vote-icon">👎</span><span class="vote-number">1</span></div>` : ''}</div><div class="votes-section"><span class="vote-label">👥 Terzi:</span>${c.tsi > 0 ? `<div class="vote-item"><span class="vote-icon">👍</span><span class="vote-number">${c.tsi}</span></div>` : ''}${c.tforse > 0 ? `<div class="vote-item"><span class="vote-icon">❓</span><span class="vote-number">${c.tforse}</span></div>` : ''}${c.tno > 0 ? `<div class="vote-item"><span class="vote-icon">👎</span><span class="vote-number">1</span></div>` : ''}</div></div></div>`; }).join(''); document.getElementById('list').innerHTML = html || '<div class="empty">❌ Nessun contatto trovato</div>'; }
+
+        function updateStats() { const total = allContacts.length; const contacted = allContacts.filter(c => ['Contattato', 'WhatsApp'].includes(c.stato)).length; const priority = allContacts.filter(c => c.priority).length; const votes = allContacts.reduce((sum, c) => sum + c.psi + c.tsi, 0); document.getElementById('stat-total').textContent = total; document.getElementById('stat-contacted').textContent = contacted; document.getElementById('stat-priority').textContent = priority; document.getElementById('stat-votes').textContent = votes; const contacted_count = allContacts.filter(c => c.stato === 'Contattato').length; const whatsapp_count = allContacts.filter(c => c.stato === 'WhatsApp').length; const not_count = total - contacted_count - whatsapp_count; const psi = allContacts.reduce((s, c) => s + c.psi, 0); const pforse = allContacts.reduce((s, c) => s + c.pforse, 0); const pno = allContacts.reduce((s, c) => s + c.pno, 0); const tsi = allContacts.reduce((s, c) => s + c.tsi, 0); const tforse = allContacts.reduce((s, c) => s + c.tforse, 0); const tno = allContacts.reduce((s, c) => s + c.tno, 0); document.getElementById('rep-total').textContent = total; document.getElementById('rep-contacted').textContent = contacted_count; document.getElementById('rep-whatsapp').textContent = whatsapp_count; document.getElementById('rep-not').textContent = not_count; document.getElementById('rep-priority').textContent = priority; document.getElementById('rep-psi').textContent = psi; document.getElementById('rep-pforse').textContent = pforse; document.getElementById('rep-pno').textContent = pno; document.getElementById('rep-tsi').textContent = tsi; document.getElementById('rep-tforse').textContent = tforse; document.getElementById('rep-tno').textContent = tno; }
+
+        function openNewContact() { currentEditId = null; document.getElementById('modal-title').textContent = '➕ Nuovo Contatto'; document.getElementById('btn-delete').style.display = 'none'; document.getElementById('cognome').value = ''; document.getElementById('nome').value = ''; document.getElementById('telefono').value = ''; document.getElementById('stato').value = 'Non contattato'; document.getElementById('psi').value = '0'; document.getElementById('pforse').value = '0'; document.getElementById('pno').value = '0'; document.getElementById('tsi').value = '0'; document.getElementById('tforse').value = '0'; document.getElementById('tno').value = '0'; document.getElementById('priority').checked = false; document.getElementById('recall').checked = false; document.getElementById('modal').classList.add('active'); }
+        
+        function editContact(id) { const c = allContacts.find(x => x.id === id); if (!c) return; currentEditId = id; document.getElementById('modal-title').textContent = `✏️ ${c.cognome} ${c.nome}`; document.getElementById('btn-delete').style.display = 'block'; document.getElementById('cognome').value = c.cognome; document.getElementById('nome').value = c.nome; document.getElementById('telefono').value = c.telefono; document.getElementById('stato').value = c.stato; document.getElementById('psi').value = c.psi; document.getElementById('pforse').value = c.pforse; document.getElementById('pno').value = c.pno; document.getElementById('tsi').value = c.tsi; document.getElementById('tforse').value = c.tforse; document.getElementById('tno').value = c.tno; document.getElementById('priority').checked = c.priority; document.getElementById('recall').checked = c.recall; document.getElementById('modal').classList.add('active'); }
+        
+        async function saveContact() { const cognome = document.getElementById('cognome').value.trim(); const nome = document.getElementById('nome').value.trim(); if (!cognome && !nome) { alert('⚠️ Inserisci nome o cognome'); return; } let contact; if (currentEditId) { contact = allContacts.find(c => c.id === currentEditId); contact.cognome = cognome; contact.nome = nome; contact.telefono = document.getElementById('telefono').value; contact.stato = document.getElementById('stato').value; contact.psi = parseInt(document.getElementById('psi').value) || 0; contact.pforse = parseInt(document.getElementById('pforse').value) || 0; contact.pno = parseInt(document.getElementById('pno').value) || 0; contact.tsi = parseInt(document.getElementById('tsi').value) || 0; contact.tforse = parseInt(document.getElementById('tforse').value) || 0; contact.tno = parseInt(document.getElementById('tno').value) || 0; contact.priority = document.getElementById('priority').checked; contact.recall = document.getElementById('recall').checked; contact.updated_at = new Date().toISOString(); } else { contact = { id: `${Date.now()}_${Math.random()}`, cognome, nome, telefono: document.getElementById('telefono').value, stato: document.getElementById('stato').value, psi: parseInt(document.getElementById('psi').value) || 0, pforse: parseInt(document.getElementById('pforse').value) || 0, pno: parseInt(document.getElementById('pno').value) || 0, tsi: parseInt(document.getElementById('tsi').value) || 0, tforse: parseInt(document.getElementById('tforse').value) || 0, tno: parseInt(document.getElementById('tno').value) || 0, priority: document.getElementById('priority').checked, recall: document.getElementById('recall').checked, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }; allContacts.push(contact); } saveLocal(); await uploadContact(contact); render(); updateStats(); document.getElementById('modal').classList.remove('active'); syncSupabase(); }
+        
+        async function deleteContact() { if (!confirm('Eliminare?')) return; try { await db.from('tracker_contacts').delete().eq('id', currentEditId); } catch (err) { console.error('Delete error:', err); } allContacts = allContacts.filter(c => c.id !== currentEditId); saveLocal(); render(); updateStats(); document.getElementById('modal').classList.remove('active'); }
+        
+        function exportCSV() { let csv = 'Cognome;Nome;Telefono;Stato;Personale Si;Personale Forse;Personale No;Terzi Si;Terzi Forse;Terzi No;Prioritario;Da Richiamare\n'; allContacts.forEach(c => { csv += `"${c.cognome}";"${c.nome}";"${c.telefono}";"${c.stato}";${c.psi};${c.pforse};${c.pno};${c.tsi};${c.tforse};${c.tno};"${c.priority ? 'Si' : 'No'}";"${c.recall ? 'Si' : 'No'}"\n`; }); const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); const url = URL.createObjectURL(blob); link.setAttribute('href', url); link.setAttribute('download', `tracker_${new Date().toISOString().split('T')[0]}.csv`); link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link); }
+
+        document.getElementById('tab-lista').onclick = () => { document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.getElementById('tab-lista').classList.add('active'); document.getElementById('list').classList.add('active'); document.getElementById('report').classList.remove('active'); };
+        document.getElementById('tab-report').onclick = () => { document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.getElementById('tab-report').classList.add('active'); document.getElementById('report').classList.add('active'); document.getElementById('list').classList.remove('active'); };
+        document.getElementById('btn-nuovo').onclick = openNewContact;
+        document.getElementById('btn-import').onclick = () => document.getElementById('fileInput').click();
+        document.getElementById('btn-excel').onclick = exportCSV;
+        document.getElementById('btn-filters').onclick = () => { document.getElementById('filters-panel').classList.toggle('open'); document.getElementById('btn-filters').classList.toggle('active'); };
+        document.getElementById('btn-close').onclick = () => document.getElementById('modal').classList.remove('active');
+        document.getElementById('btn-delete').onclick = deleteContact;
+        document.getElementById('btn-save').onclick = saveContact;
+        
+        document.getElementById('search').oninput = (e) => { filters.search = e.target.value.toLowerCase(); render(); };
+        document.querySelectorAll('[data-filter]').forEach(btn => btn.onclick = (e) => { document.querySelectorAll(`[data-filter="${e.target.dataset.filter}"]`).forEach(b => b.classList.remove('active')); e.target.classList.add('active'); filters[e.target.dataset.filter] = e.target.dataset.value; render(); });
+        document.querySelectorAll('[data-sort]').forEach(btn => btn.onclick = (e) => { document.querySelectorAll('[data-sort]').forEach(b => b.classList.remove('active')); e.target.classList.add('active'); filters.sort = e.target.dataset.sort; render(); });
+        
+        document.getElementById('fileInput').onchange = async (e) => { const file = e.target.files[0]; if (!file) return; setSyncStatus('📥 Importazione...'); const reader = new FileReader(); reader.onload = async (evt) => { try { const newContacts = parseCSV(evt.target.result); allContacts = allContacts.concat(newContacts); saveLocal(); for (const contact of newContacts) { await uploadContact(contact); } render(); updateStats(); await syncSupabase(); alert(`✅ Importati ${newContacts.length} contatti!`); } catch (err) { console.error('Import error:', err); alert('❌ Errore importazione'); } }; reader.readAsText(file); };
+
+        async function init() { setSyncStatus('⏳ Caricamento...'); loadLocal(); render(); updateStats(); await syncSupabase(); setInterval(() => syncSupabase(), 10000); }
+        
+        init();
+    </script>
+</body>
+</html>
